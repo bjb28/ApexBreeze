@@ -16,24 +16,28 @@ ApexBreeze is a SimHub plugin that bridges your sim racing wheel buttons to the 
 ## Architecture
 
 ```
-[GT Neo Buttons] → [SimHub Custom Property] → [C# Plugin] → [Windows BLE API] → [Headwind Fan]
+[GT Neo Buttons] → [SimHub Action] → [ApexBreeze Plugin] → [Windows BLE API] → [Headwind Fan]
 ```
+
+The plugin owns all state internally. Wheel buttons trigger SimHub actions (`FanSpeedUp` / `FanSpeedDown`) which the plugin handles directly — no separate custom property wiring needed.
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | Python PoC | `poc/headwind_ble.py` | Validate BLE protocol before building the plugin |
-| SimHub Plugin | `ApexBreezePlugin/` | C# plugin that reads SimHub property and writes to fan via BLE |
+| SimHub Plugin | `ApexBreezePlugin/` | C# plugin with built-in button handling and BLE control |
 
 ## Project Structure
 
 ```
 ApexBreeze/
 ├── poc/
-│   └── headwind_ble.py          # Phase 1: BLE proof of concept
+│   ├── headwind_ble.py          # Phase 1: BLE proof of concept
+│   └── requirements.txt
 ├── ApexBreezePlugin/
-│   ├── ApexBreezePlugin.cs      # Phase 3: SimHub plugin
+│   ├── ApexBreezePlugin.cs      # SimHub plugin (BLE + input handling)
 │   ├── ApexBreezePlugin.csproj
 │   └── Properties/
+│       └── AssemblyInfo.cs
 ├── CLAUDE.md
 ├── README.md
 └── .gitignore
@@ -43,21 +47,24 @@ ApexBreeze/
 
 ### Phase 1 — Python PoC (BLE Validation)
 
-Prove the BLE control protocol works using Python and the `bleak` library. Type a speed value, fan changes. Nothing else.
+Prove the BLE control protocol works using Python and the `bleak` library.
 
 **Status:** Complete
 
-### Phase 2 — SimHub Input Wiring
+### Phase 2+3 — SimHub Plugin (Input Wiring + BLE Control)
 
-Configure SimHub to map GT Neo encoder buttons to a custom property (`ApexBreeze.FanSpeed`) that increments/decrements in steps of 10, clamped to 0–100. This is UI configuration only — no code.
+Originally Phase 2 (SimHub UI config) and Phase 3 (C# plugin) were separate. These were merged — the plugin handles both button input and BLE control internally.
 
-**Status:** Not started
+The plugin:
+- Registers SimHub actions: `FanSpeedUp`, `FanSpeedDown`, `FanOff`, `FanMax`
+- Maintains speed state internally (0–100, step 10)
+- Exposes `ApexBreeze.FanSpeed` and `ApexBreeze.Connected` as SimHub properties
+- Connects to the Headwind over BLE, subscribes to notifications (CCCD), enters manual mode
+- Writes speed commands only when the value changes (debounced)
+- Auto-reconnects every 5 seconds if BLE drops
+- Turns fan off on plugin shutdown
 
-### Phase 3 — C# SimHub Plugin
-
-Build the SimHub plugin that reads `ApexBreeze.FanSpeed` on each data tick, connects to the Headwind over BLE, and writes speed commands. Includes reconnect logic and debouncing (only writes when the value changes).
-
-**Status:** Not started
+**Status:** Built, ready for testing
 
 ## BLE Protocol Summary
 
@@ -75,23 +82,39 @@ Build the SimHub plugin that reads `ApexBreeze.FanSpeed` on each data tick, conn
 
 ## Getting Started
 
-### Phase 1 — Running the PoC
+### Running the PoC
 
 ```bash
 cd poc
-pip install bleak
+pip install -r requirements.txt
 python headwind_ble.py
 ```
 
-**Before running:**
+**Before running (PoC or plugin):**
 
 - Headwind fan must be powered on (light visible on the unit)
 - Close the Wahoo mobile app — the Headwind only supports one BLE connection at a time and will be invisible to scans if the app has it
-- Do **not** pair the Headwind through Windows Bluetooth settings (Settings > Bluetooth & devices). It will fail — this is a known Windows issue with the Headwind and is not a blocker. `bleak` bypasses Windows pairing entirely and talks to the BLE stack directly
+- Do **not** pair the Headwind through Windows Bluetooth settings (Settings > Bluetooth & devices). It will fail — this is a known Windows issue with the Headwind and is not a blocker
 
-### Phase 3 — Building the Plugin
+### Building the Plugin
 
-Build `ApexBreezePlugin.dll` and copy it to your SimHub plugins directory. Details will be added once Phase 3 development begins.
+```bash
+cd ApexBreezePlugin
+dotnet build -c Release
+```
+
+The build automatically copies `ApexBreezePlugin.dll` to the SimHub install directory. Restart SimHub to load the plugin.
+
+### SimHub Configuration
+
+After the plugin loads in SimHub:
+
+1. Go to **Controls and Events**
+2. Map your GT Neo encoder up button to the **ApexBreeze > FanSpeedUp** action
+3. Map your GT Neo encoder down button to the **ApexBreeze > FanSpeedDown** action
+4. (Optional) Map buttons to **FanOff** and **FanMax** for quick access
+
+The `ApexBreeze.FanSpeed` property is available for use in SimHub dashboards to display the current fan speed.
 
 ## License
 

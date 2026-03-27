@@ -65,33 +65,29 @@ File: `poc/headwind_ble.py`
 - Test at 0, 50, 100
 - Goal: type a number, fan changes. Nothing else.
 
-### Phase 2 - SimHub Input Wiring
+### Phase 2+3 - SimHub Plugin (merged)
 
-- No code needed here — this is SimHub UI config
-- Map GT Neo encoder up = increment speed variable by 10
-- Map GT Neo encoder down = decrement speed variable by 10
-- Clamp to 0-100
-- Expose as SimHub custom property: `ApexBreeze.FanSpeed`
-
-### Phase 3 - C# SimHub Plugin
+Phase 2 (SimHub UI config) was folded into Phase 3. The plugin
+handles both input and BLE control internally.
 
 Project: `ApexBreezePlugin`
 
-- Target SimHub plugin SDK (reference SimHub DLLs)
+- Target .NET Framework 4.8, SimHub plugin SDK
 - Implement `IPlugin`, `IDataPlugin` interfaces
-- On `Init`: connect to Headwind via `Windows.Devices.Bluetooth`
-  - Scan by name "HEADWIND"
-  - Connect, discover service, get characteristic reference
-  - Send initial Manual mode command
-  - Handle connection failure gracefully (log, retry on next tick)
+- On `Init`:
+  - Register actions: FanSpeedUp, FanSpeedDown, FanOff, FanMax
+  - Expose properties: ApexBreeze.FanSpeed, ApexBreeze.Connected
+  - Connect to Headwind via `Windows.Devices.Bluetooth`
+  - Subscribe to notifications (CCCD), send Manual mode command
+  - Handle connection failure gracefully (log, retry every 5s)
 - On `DataUpdate` tick:
-  - Read `ApexBreeze.FanSpeed` custom property
-  - Compare to last sent value
-  - Only write to BLE if value has changed (debounce — do NOT
-    blast BLE every frame)
+  - Compare current speed to last sent value
+  - Only write to BLE if value has changed (debounce)
   - Write `[0x02, speed, 0x00, 0x00]` to characteristic
-- Reconnect logic: if BLE drops, attempt reconnect every 5 seconds
-- Build output: `ApexBreezePlugin.dll` → drop into SimHub plugins folder
+  - Attempt reconnect if disconnected (every 5 seconds)
+- On `End`: turn fan off, dispose BLE resources
+- Build: `dotnet build -c Release` — auto-copies DLL to SimHub
+- User maps GT Neo buttons to actions in SimHub Controls & Events
 
 ## Key Constraints
 
