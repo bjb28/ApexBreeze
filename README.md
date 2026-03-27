@@ -45,7 +45,7 @@ ApexBreeze/
 
 Prove the BLE control protocol works using Python and the `bleak` library. Type a speed value, fan changes. Nothing else.
 
-**Status:** Not started
+**Status:** Complete
 
 ### Phase 2 — SimHub Input Wiring
 
@@ -68,7 +68,9 @@ Build the SimHub plugin that reads `ApexBreeze.FanSpeed` on each data tick, conn
 
 - **Service UUID:** `a026ee0c-0a7d-4ab3-97fa-f1500f9feb8b`
 - **Characteristic UUID:** `a026e038-0a7d-4ab3-97fa-f1500f9feb8b`
-- Write without response — do not subscribe to notifications
+- Write without response
+- You **must** subscribe to notifications (enable CCCD) on the characteristic before the fan will accept writes — even though we don't use the notification data
+- Required sequence: subscribe to notifications → send manual mode → send speed commands
 - Device advertises as "HEADWIND" (service UUID not in advertisement)
 
 ## Getting Started
@@ -81,7 +83,11 @@ pip install bleak
 python headwind_ble.py
 ```
 
-Make sure your Headwind fan is powered on and Bluetooth is enabled on your PC.
+**Before running:**
+
+- Headwind fan must be powered on (light visible on the unit)
+- Close the Wahoo mobile app — the Headwind only supports one BLE connection at a time and will be invisible to scans if the app has it
+- Do **not** pair the Headwind through Windows Bluetooth settings (Settings > Bluetooth & devices). It will fail — this is a known Windows issue with the Headwind and is not a blocker. `bleak` bypasses Windows pairing entirely and talks to the BLE stack directly
 
 ### Phase 3 — Building the Plugin
 

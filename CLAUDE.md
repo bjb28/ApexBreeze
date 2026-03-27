@@ -31,8 +31,11 @@ that we maintain internally.
 - You MUST send Manual mode first before speed will be accepted
 - The Headwind advertises by name "HEADWIND" — service UUID is NOT
   in the advertisement packet so you must connect first then discover
-- State notifications are cyclic not true notify — ignore for our
-  use case, we are write-only
+- State notifications are cyclic not true notify — we don't need
+  the data, but you MUST subscribe to notifications (enable CCCD)
+  on the characteristic before the fan will accept write commands
+- Notification subscribe → Manual mode → Speed writes (this order
+  is required)
 
 ## Architecture
 
@@ -96,7 +99,9 @@ Project: `ApexBreezePlugin`
 - Must enter Manual mode `[0x04, 0x04, 0x00, 0x00]` before speed
   commands work — do this on connect, not on every speed update
 - Speed range: 0-100 as a single byte
-- Do not read/subscribe to notifications — write only is sufficient
+- Must subscribe to notifications (CCCD) before writes are accepted
+- We don't use notification data — subscription is just a protocol
+  prerequisite
 
 ## Start With
 
